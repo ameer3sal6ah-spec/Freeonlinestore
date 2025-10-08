@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../../types';
+import { generateProductDescription } from '../../services/api';
+import { SparklesIcon } from '../icons/Icons';
 
 interface ProductFormModalProps {
   product: Product | null;
@@ -19,6 +21,9 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ product, onSave, on
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const [aiError, setAiError] = useState('');
+
 
   useEffect(() => {
     if (product) {
@@ -54,6 +59,24 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ product, onSave, on
       reader.readAsDataURL(file);
     }
   };
+  
+  const handleGenerateDescription = async () => {
+    if (!formData.name) {
+        setAiError('يرجى إدخال اسم المنتج أولاً.');
+        return;
+    }
+    setIsGeneratingDesc(true);
+    setAiError('');
+    try {
+        const generatedDescription = await generateProductDescription(formData.name, formData.category);
+        setFormData(prev => ({ ...prev, description: generatedDescription }));
+    } catch (error: any) {
+        setAiError(error.message);
+    } finally {
+        setIsGeneratingDesc(false);
+    }
+  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,8 +133,28 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ product, onSave, on
                             <input type="number" step="0.01" name="originalPrice" value={formData.originalPrice} onChange={handleChange} className="mt-1 w-full border-gray-300 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 group-disabled:bg-gray-100" />
                         </div>
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700">الوصف</label>
-                            <textarea name="description" value={formData.description} onChange={handleChange} rows={4} className="mt-1 w-full border-gray-300 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 group-disabled:bg-gray-100" required></textarea>
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="block text-sm font-medium text-gray-700">الوصف</label>
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateDescription}
+                                    disabled={!formData.name || isGeneratingDesc || isSaving}
+                                    className="flex items-center space-x-2 space-x-reverse px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-50 rounded-full hover:bg-teal-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <SparklesIcon className="w-4 h-4" />
+                                    <span>{isGeneratingDesc ? 'جاري الإنشاء...' : 'إنشاء بالذكاء الاصطناعي'}</span>
+                                </button>
+                            </div>
+                            <textarea 
+                                name="description" 
+                                value={formData.description} 
+                                onChange={handleChange} 
+                                rows={4} 
+                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 group-disabled:bg-gray-100" 
+                                required
+                                placeholder={isGeneratingDesc ? "جاري إنشاء وصف تسويقي جذاب..." : ""}
+                            ></textarea>
+                            {aiError && <p className="text-xs text-red-600 mt-1">{aiError}</p>}
                         </div>
                          <div>
                             <label className="block text-sm font-medium text-gray-700">المخزون</label>

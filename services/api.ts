@@ -1,5 +1,46 @@
 import { supabase } from './supabaseClient';
 import { Product, Order } from '../types';
+import { GoogleGenAI } from '@google/genai';
+
+// Gemini AI Integration for product descriptions
+let genAI: GoogleGenAI | null = null;
+let genAIError: string | null = null;
+
+try {
+  // IMPORTANT: The API key is expected to be available in the environment.
+  if (!process.env.API_KEY) {
+    throw new Error('API_KEY environment variable not set.');
+  }
+  genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+} catch (e: any) {
+  genAIError = `فشل تهيئة خدمة الذكاء الاصطناعي: ${e.message}`;
+  console.error(genAIError);
+}
+
+export const generateProductDescription = async (productName: string, category: string): Promise<string> => {
+    if (genAIError || !genAI) {
+        throw new Error(genAIError || "خدمة الذكاء الاصطناعي غير متاحة.");
+    }
+
+    const prompt = `
+    اكتب وصفاً تسويقياً جذاباً ومختصراً (جملتين أو ثلاث) لمنتج باللغة العربية. 
+    ركز على الفوائد والمميزات الرئيسية.
+    اسم المنتج: "${productName}"
+    فئة المنتج: "${category}"
+    `;
+
+    try {
+        const response = await genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error: any) {
+        console.error("Error generating description with Gemini:", error);
+        throw new Error(`فشل إنشاء الوصف: ${error.message}`);
+    }
+};
+
 
 // Helper to transform snake_case from Supabase to camelCase for the app
 const fromSupabase = (data: any) => {

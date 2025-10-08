@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 
-const ADMIN_PASSWORD = 'admin'; // يمكنك تغيير كلمة المرور هنا
+const ADMIN_PASSWORD = 'MO9090QaasWE%Vbn7'; // يمكنك تغيير كلمة المرور هنا
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
