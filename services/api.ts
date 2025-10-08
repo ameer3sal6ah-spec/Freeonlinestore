@@ -1,0 +1,245 @@
+import { supabase } from './supabaseClient';
+import { Product, Order } from '../types';
+
+// Helper to transform snake_case from Supabase to camelCase for the app
+const fromSupabase = (data: any) => {
+    if (!data) return null;
+    if (Array.isArray(data)) {
+        return data.map(item => fromSupabase(item));
+    }
+    const transformed: {[key: string]: any} = {};
+    for (const key in data) {
+        const camelKey = key.replace(/_([a-z])/g, g => g[1].toUpperCase());
+        transformed[camelKey] = data[key];
+    }
+    return transformed;
+};
+
+// Helper to transform camelCase from the app to snake_case for Supabase
+const toSupabase = (data: any) => {
+    const transformed: {[key: string]: any} = {};
+    for (const key in data) {
+        if (key.includes('_')) {
+             transformed[key] = data[key];
+             continue;
+        }
+        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        transformed[snakeKey] = data[key];
+    }
+    return transformed;
+}
+
+// Helper to extract the storage path from a public URL
+const getPathFromUrl = (url: string): string | null => {
+    if (!url || !url.includes('/storage/v1/object/public/product_images')) {
+        return null;
+    }
+    try {
+        const urlObject = new URL(url);
+        const parts = urlObject.pathname.split('/');
+        const bucketName = 'product_images';
+        const bucketIndex = parts.indexOf(bucketName);
+        if (bucketIndex === -1 || bucketIndex + 1 >= parts.length) {
+            console.warn(`Could not determine image path from URL: ${url}`);
+            return null;
+        }
+        return parts.slice(bucketIndex + 1).join('/');
+    } catch (error) {
+        console.error(`Invalid URL provided to getPathFromUrl: ${url}`, error);
+        return null;
+    }
+};
+
+
+const api = {
+  getProducts: async (): Promise<Product[]> => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching products:', error.message || error);
+      return [];
+    }
+    return fromSupabase(data) as Product[];
+  },
+
+  getProductById: async (id: number): Promise<Product | undefined> => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+      
+    if (error) {
+      console.error(`Error fetching product ${id}:`, error.message || error);
+      return undefined;
+    }
+    return fromSupabase(data) as Product | undefined;
+  },
+  
+  saveProduct: async (
+    productData: Partial<Omit<Product, 'id' | 'createdAt'>>,
+    imageFile: File | null,
+    existingProduct: Product | null
+  ): Promise<Product> => {
+    let finalProductData = { ...productData };
+    let newImageUrl: string | null = null;
+    const oldImageUrl: string | null = existingProduct?.imageUrl || null;
+
+    if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('product_images')
+            .upload(fileName, imageFile);
+
+        if (uploadError) {
+            throw new Error(`فشل رفع الصورة: ${uploadError.message}`);
+        }
+
+        const { data: urlData } = supabase.storage
+            .from('product_images')
+            .getPublicUrl(fileName);
+        
+        newImageUrl = urlData.publicUrl;
+        finalProductData.imageUrl = newImageUrl;
+        if (!finalProductData.images || finalProductData.images.length === 0) {
+            finalProductData.images = [newImageUrl];
+        }
+    }
+
+    try {
+        let savedData;
+        if (existingProduct) {
+            const { data, error } = await supabase
+                .from('products')
+                .update(toSupabase(finalProductData))
+                .eq('id', existingProduct.id)
+                .select()
+                .single();
+            if (error) throw error;
+            savedData = data;
+        } else {
+            const { data, error } = await supabase
+                .from('products')
+                .insert(toSupabase(finalProductData))
+                .select()
+                .single();
+            if (error) throw error;
+            savedData = data;
+        }
+
+        if (imageFile && oldImageUrl && oldImageUrl !== newImageUrl) {
+            try {
+                const oldImagePath = getPathFromUrl(oldImageUrl);
+                if (oldImagePath) {
+                    await supabase.storage.from('product_images').remove([oldImagePath]);
+                }
+            } catch (deleteErr: any) {
+                console.warn(`تم حفظ المنتج، لكن فشل حذف الصورة القديمة: ${deleteErr.message}`);
+            }
+        }
+        
+        return fromSupabase(savedData) as Product;
+
+    } catch (dbError: any) {
+        if (newImageUrl) {
+            console.warn("فشل عملية قاعدة البيانات، سيتم محاولة حذف الصورة المرفوعة...");
+            const newImagePath = getPathFromUrl(newImageUrl);
+            if(newImagePath) {
+                await supabase.storage.from('product_images').remove([newImagePath]).catch(cleanupErr => console.error("فشل حذف الصورة بعد فشل العملية:", cleanupErr));
+            }
+        }
+        throw new Error(`فشل حفظ المنتج في قاعدة البيانات: ${dbError.message}`);
+    }
+  },
+
+  deleteProduct: async (product: Product): Promise<void> => {
+    console.error(`Attempting to delete product ID: ${product.id}`);
+    const imagePath = getPathFromUrl(product.imageUrl);
+
+    // الخطوة 1: حذف المنتج من قاعدة البيانات أولاً. هذا هو الإجراء الأهم.
+    const { error: dbError } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', product.id);
+
+    if (dbError) {
+        // إذا فشل حذف قاعدة البيانات، نتوقف فوراً ونبلغ عن الخطأ.
+        console.error('DATABASE DELETE FAILED:', dbError);
+        throw new Error(`فشل حذف المنتج من قاعدة البيانات: ${dbError.message}`);
+    }
+
+    // الخطوة 2: إذا نجح حذف قاعدة البيانات، نحاول حذف الصورة من التخزين.
+    if (imagePath) {
+        const { error: storageError } = await supabase.storage
+            .from('product_images')
+            .remove([imagePath]);
+
+        if (storageError) {
+            // هذا ليس خطأً فادحاً للمستخدم، لأن المنتج تم حذفه بالفعل.
+            // نسجل تحذيراً للمطور لمراجعته لاحقاً.
+            console.warn(`تم حذف المنتج بنجاح، لكن فشل حذف الصورة (${imagePath}) من التخزين: ${storageError.message}`);
+        }
+    }
+  },
+  
+  getOrders: async (): Promise<Order[]> => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching orders:', error.message || error);
+        return [];
+    }
+    
+    const transformedData = fromSupabase(data) as any[];
+    return transformedData.map(order => ({
+        ...order,
+        createdAt: new Date(order.createdAt),
+    })) as Order[];
+  },
+  
+  updateOrderStatus: async (orderId: string, status: Order['status']): Promise<Order | undefined> => {
+     const { data, error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', orderId)
+        .select()
+        .single();
+    
+     if (error) {
+        console.error(`Error updating order ${orderId}:`, error.message || error);
+        return undefined;
+     }
+
+     return fromSupabase(data) as Order | undefined;
+  },
+  
+  submitOrder: async (orderData: Omit<Order, 'id' | 'status' | 'createdAt'>): Promise<Order> => {
+    const orderToInsert = toSupabase({
+      ...orderData,
+      status: 'pending',
+    });
+    
+    const { data, error } = await supabase
+        .from('orders')
+        .insert(orderToInsert)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error submitting order:', error.message || error);
+        throw new Error('Could not submit order');
+    }
+
+    return fromSupabase(data) as Order;
+  },
+};
+
+export default api;
