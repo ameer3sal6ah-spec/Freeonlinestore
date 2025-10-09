@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { fabric } from 'fabric';
-import { GoogleGenAI } from '@google/genai';
+// FIX: The 'fabric' library is imported as a namespace because the module does not have a named export 'fabric'.
+import * as fabric from 'fabric';
 import { SparklesIcon } from '../icons/Icons';
-import { removeImageBackground, savePublishedProduct } from '../../services/api';
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { removeImageBackground, savePublishedProduct, generateAiImage } from '../../services/api';
 
 const FONT_FAMILIES = [
     { name: 'كايرو', value: 'Cairo, sans-serif' },
@@ -386,16 +384,13 @@ const ProfessionalDesignStudio: React.FC = () => {
         updateLoadingState('ai', true);
         setGeneralError('');
         const canvas = fabricCanvasRef.current;
-        if (!canvas) return;
+        if (!canvas) {
+            updateLoadingState('ai', false);
+            return;
+        };
         
         try {
-             const response = await ai.models.generateImages({
-                model: 'imagen-4.0-generate-001',
-                prompt: `A professional, high-resolution graphic for a t-shirt, logo, or artistic text. The design should be centered around: "${aiPrompt}". The image MUST have a transparent background.`,
-                config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' },
-            });
-            
-            const base64Image = response.generatedImages[0].image.imageBytes;
+            const base64Image = await generateAiImage(aiPrompt);
             const imageUrl = `data:image/png;base64,${base64Image}`;
 
             fabric.Image.fromURL(imageUrl, (img) => {
@@ -413,9 +408,9 @@ const ProfessionalDesignStudio: React.FC = () => {
                 canvas.renderAll();
             });
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('AI image generation error:', error);
-            setGeneralError('حدث خطأ أثناء إنشاء الصورة. يرجى المحاولة مرة أخرى.');
+            setGeneralError(error.message || 'حدث خطأ أثناء إنشاء الصورة. يرجى المحاولة مرة أخرى.');
         } finally {
             updateLoadingState('ai', false);
         }

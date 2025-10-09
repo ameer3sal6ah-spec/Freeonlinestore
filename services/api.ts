@@ -3,13 +3,14 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { supabase } from './supabaseClient';
 import { Product, Order } from '../types';
 
-// Centralized AI client initialization with robust error handling for missing API key.
+// Centralized AI client initialization with the user-provided API key.
+// This resolves the environment configuration issue and enables AI features.
 let ai: GoogleGenAI;
-const apiKey = process.env.API_KEY;
+const apiKey = 'AIzaSyCVEf43IPNoMmx6MkkGizIocx7798JYvOA';
 
 if (!apiKey) {
     // This console error helps developers diagnose the environmental setup issue.
-    console.error("Google AI API key is not configured in process.env.API_KEY. AI features will fail.");
+    console.error("Google AI API key is not configured. AI features will fail.");
     // Create a dummy object so the app doesn't crash on load. 
     // The functions below will handle the error gracefully for the user.
     ai = {} as GoogleGenAI; 
@@ -45,6 +46,35 @@ export async function generateProductDescription(productName: string, category: 
     throw new Error("فشل إنشاء الوصف بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى لاحقاً.");
   }
 }
+
+/**
+ * Generates an image from a text prompt using the Gemini API.
+ * @param prompt The text prompt describing the image to generate.
+ * @returns A base64 encoded string of the generated PNG image.
+ */
+export async function generateAiImage(prompt: string): Promise<string> {
+    if (!apiKey || !ai.models) {
+        throw new Error("مفتاح API الخاص بـ Google AI غير مُعدّ. يرجى مراجعة إعدادات بيئة التشغيل.");
+    }
+    try {
+        const fullPrompt = `A professional, high-resolution graphic for a t-shirt, logo, or artistic text. The design should be centered around: "${prompt}". The image MUST have a transparent background.`;
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: fullPrompt,
+            config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' },
+        });
+        
+        return response.generatedImages[0].image.imageBytes;
+    } catch (error) {
+        console.error("Error generating AI image with Gemini:", error);
+        const errorMessage = (error instanceof Error) ? error.message : String(error);
+        if (errorMessage.includes("API key not valid")) {
+            throw new Error("مفتاح API الخاص بـ Google AI غير صالح. يرجى التأكد من صحة المفتاح في إعدادات بيئة التشغيل.");
+        }
+        throw new Error("فشل إنشاء الصورة بالذكاء الاصطناعي. حاول مرة أخرى.");
+    }
+}
+
 
 /**
  * Removes the background from an image using the Gemini API.
