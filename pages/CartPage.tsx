@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
@@ -9,57 +8,32 @@ const CartPage: React.FC = () => {
   const { cartItems, removeFromCart, updateQuantity, cartTotal, cartCount } = useCart();
 
   const renderCartItem = (item: CartItem) => {
+    // Renders a custom T-shirt with the final generated image
     if (item.customization) {
-      // Custom T-shirt Item
       const { customization } = item;
       return (
         <div className="flex items-start">
-          <div className="relative w-24 h-24 me-4 bg-gray-200 rounded-md">
-            <img src={customization.tshirtImageUrl} alt="T-shirt base" className="w-24 h-24 object-cover rounded-md" />
-            {customization.logoUrl && customization.logoPosition && (
-              <img 
-                src={customization.logoUrl} 
-                alt="Custom logo" 
-                className="absolute object-contain pointer-events-none"
-                style={{
-                  top: `${customization.logoPosition.y}%`,
-                  left: `${customization.logoPosition.x}%`,
-                  width: `${customization.logoPosition.width}%`,
-                  transform: 'translate(-50%, -50%)',
-                }}
-              />
-            )}
-            {customization.text && (
-              <div
-                className="absolute pointer-events-none flex items-center justify-center"
-                style={{
-                    top: `${customization.text.y}%`,
-                    left: `${customization.text.x}%`,
-                    color: customization.text.color,
-                    fontSize: `${(customization.text.fontSize / 100) * 96}px`, // 96px is w-24
-                    fontFamily: customization.text.fontFamily,
-                    transform: 'translate(-50%, -50%)',
-                    whiteSpace: 'nowrap',
-                }}
-              >
-                  {customization.text.content}
-              </div>
-            )}
-          </div>
+          <img 
+            src={customization.finalDesignUrl} 
+            alt={item.product.name} 
+            className="w-24 h-24 object-cover rounded-md me-4 border bg-gray-100" 
+          />
           <div>
             <span className="font-semibold text-lg">{item.product.name}</span>
             <div className="text-sm text-gray-500 mt-1">
-              <span>اللون: {customization.color.name}</span>, <span>المقاس: {customization.size}</span>
+              <span>اللون: {customization.colorName}</span>, <span>المقاس: {customization.size}</span>
             </div>
             <p className="text-gray-600 mt-1">{item.product.price.toFixed(2)} ج.م</p>
           </div>
         </div>
       );
-    } else {
-      // Standard Product Item
+    } 
+    // Renders a standard product
+    else {
       return (
         <div className="flex items-center">
-          <img src={(item.product as any).imageUrl} alt={item.product.name} className="w-20 h-20 object-cover rounded-md me-4" />
+          {/* FIX: Removed unnecessary `as any` type casting */}
+          <img src={item.product.imageUrl} alt={item.product.name} className="w-20 h-20 object-cover rounded-md me-4" />
           <div>
             <Link to={`/product/${item.product.id}`} className="font-semibold text-lg hover:text-teal-600">{item.product.name}</Link>
             <p className="text-gray-500">{item.product.price.toFixed(2)} ج.م</p>
@@ -114,7 +88,7 @@ const CartPage: React.FC = () => {
               </div>
               <div className="border-t pt-4 flex justify-between font-bold text-lg">
                 <span>المجموع الإجمالي</span>
-                <span>{cartTotal.toFixed(2)} ج.م</span>
+                <span>{cartTotal.toFixed(2)} ج.м</span>
               </div>
               <Link to="/checkout" className="block w-full text-center mt-6 bg-teal-600 text-white font-bold py-3 rounded-lg hover:bg-teal-700 transition-colors">
                 إتمام عملية الدفع

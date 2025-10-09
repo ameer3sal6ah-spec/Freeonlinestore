@@ -1,177 +1,184 @@
 
+import { GoogleGenAI, Modality } from "@google/genai";
 import { supabase } from './supabaseClient';
 import { Product, Order } from '../types';
-import { GoogleGenAI, Modality } from '@google/genai';
 
-// Gemini AI Integration for product descriptions and image generation
-let genAI: GoogleGenAI | null = null;
-let genAIError: string | null = null;
+// Centralized AI client initialization with robust error handling for missing API key.
+let ai: GoogleGenAI;
+const apiKey = process.env.API_KEY;
 
-try {
-  // IMPORTANT: The API key is expected to be available in the environment.
-  if (!process.env.API_KEY) {
-    throw new Error('API_KEY environment variable not set.');
-  }
-  genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
-} catch (e: any) {
-  genAIError = `فشل تهيئة خدمة الذكاء الاصطناعي: ${e.message}`;
-  console.error(genAIError);
+if (!apiKey) {
+    // This console error helps developers diagnose the environmental setup issue.
+    console.error("Google AI API key is not configured in process.env.API_KEY. AI features will fail.");
+    // Create a dummy object so the app doesn't crash on load. 
+    // The functions below will handle the error gracefully for the user.
+    ai = {} as GoogleGenAI; 
+} else {
+    ai = new GoogleGenAI({ apiKey });
 }
 
-export const generateProductDescription = async (productName: string, category: string): Promise<string> => {
-    if (genAIError || !genAI) {
-        throw new Error(genAIError || "خدمة الذكاء الاصطناعي غير متاحة.");
-    }
+export async function generateProductDescription(productName: string, category: string): Promise<string> {
+  // First, check if the AI client was initialized correctly.
+  if (!apiKey || !ai.models) {
+    throw new Error("مفتاح API الخاص بـ Google AI غير مُعدّ. يرجى مراجعة إعدادات بيئة التشغيل.");
+  }
 
-    const prompt = `
-    اكتب وصفاً تسويقياً جذاباً ومختصراً (جملتين أو ثلاث) لمنتج باللغة العربية. 
-    ركز على الفوائد والمميزات الرئيسية.
-    اسم المنتج: "${productName}"
-    فئة المنتج: "${category}"
-    `;
+  const prompt = `اكتب وصفًا تسويقيًا جذابًا ومختصرًا (حوالي 3-4 أسطر) لمنتج اسمه "${productName}" وهو من فئة "${category}". يجب أن يكون الوصف باللغة العربية ومناسبًا لمتجر إلكتروني. ركز على إبراز جودة المنتج أو فائدته للمشتري.`;
 
-    try {
-        const response = await genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-        return response.text.trim();
-    } catch (error: any) {
-        console.error("Error generating description with Gemini:", error);
-        throw new Error(`فشل إنشاء الوصف: ${error.message}`);
-    }
-};
+  try {
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+    
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error generating product description with Gemini:", error);
+    const errorMessage = (error instanceof Error) ? error.message : String(error);
 
-export const generateImageFromText = async (prompt: string): Promise<string> => {
-    if (genAIError || !genAI) {
-        throw new Error(genAIError || "خدمة الذكاء الاصطناعي غير متاحة.");
+    // Provide a clear, actionable error message for the specific API key error from the backend.
+    if (errorMessage.includes("API key not valid")) {
+        throw new Error("مفتاح API الخاص بـ Google AI غير صالح. يرجى التأكد من صحة المفتاح في إعدادات بيئة التشغيل.");
     }
-    try {
-        const response = await genAI.models.generateImages({
-            model: 'imagen-4.0-generate-001',
-            prompt: prompt,
-            config: {
-              numberOfImages: 1,
-              outputMimeType: 'image/png', // Use PNG for potential transparency
-            },
-        });
-        return response.generatedImages[0].image.imageBytes; // Returns base64 string
-    } catch (error: any) {
-        console.error("Error generating image with Imagen:", error);
-        throw new Error(`فشل إنشاء الصورة من النص: ${error.message}`);
-    }
-};
+    
+    // Generic error for other API issues.
+    throw new Error("فشل إنشاء الوصف بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى لاحقاً.");
+  }
+}
 
-export const generateImageFromImageAndText = async (base64Data: string, mimeType: string, prompt: string): Promise<string> => {
-    if (genAIError || !genAI) {
-        throw new Error(genAIError || "خدمة الذكاء الاصطناعي غير متاحة.");
+/**
+ * Removes the background from an image using the Gemini API.
+ * @param base64ImageData The base64 encoded string of the image.
+ * @param mimeType The MIME type of the image (e.g., 'image/png').
+ * @returns A base64 encoded string of the image with the background removed.
+ */
+export async function removeImageBackground(base64ImageData: string, mimeType: string): Promise<string> {
+    if (!apiKey || !ai.models) {
+        throw new Error("مفتاح API الخاص بـ Google AI غير مُعدّ. يرجى مراجعة إعدادات بيئة التشغيل.");
     }
     try {
-        const response = await genAI.models.generateContent({
+        const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: {
                 parts: [
-                    { inlineData: { data: base64Data, mimeType: mimeType } },
-                    { text: prompt },
+                    {
+                        inlineData: {
+                            data: base64ImageData,
+                            mimeType: mimeType,
+                        },
+                    },
+                    {
+                        text: 'remove the background, make it transparent',
+                    },
                 ],
             },
             config: {
+                // Per guidelines, both modalities are required for image editing.
                 responseModalities: [Modality.IMAGE, Modality.TEXT],
             },
         });
-        
-        // Improved error handling
-        const candidate = response.candidates?.[0];
-        if (!candidate || (candidate.finishReason && candidate.finishReason !== 'STOP')) {
-             const reason = candidate?.finishReason || 'غير معروف';
-             const reasonText = reason === 'SAFETY' ? 'لأسباب تتعلق بالسلامة' : `بسبب (${reason})`;
-             throw new Error(`تم حظر إنشاء الصورة ${reasonText}. حاول تغيير الوصف أو الصورة.`);
+
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) {
+                return part.inlineData.data; // Return the base64 of the new image
+            }
         }
-        
-        const imagePart = candidate.content?.parts?.find(part => part.inlineData);
-
-        if (imagePart?.inlineData?.data) {
-            return imagePart.inlineData.data;
+        throw new Error("AI did not return an image. It might have returned text instead.");
+    } catch (error) {
+        console.error("Error removing image background with Gemini:", error);
+        const errorMessage = (error instanceof Error) ? error.message : String(error);
+        if (errorMessage.includes("API key not valid")) {
+            throw new Error("مفتاح API الخاص بـ Google AI غير صالح. يرجى التأكد من صحة المفتاح في إعدادات بيئة التشغيل.");
         }
-        
-        throw new Error("لم يتم العثور على صورة في استجابة الذكاء الاصطناعي.");
-
-    } catch (error: any) {
-        console.error("Error editing image with Gemini:", error);
-        // Avoid nesting "فشل تعديل الصورة"
-        if (error.message.startsWith("تم حظر إنشاء الصورة")) {
-            throw error;
-        }
-        throw new Error(`فشل تعديل الصورة: ${error.message}`);
+        throw new Error("فشل إزالة الخلفية. حاول مرة أخرى بصورة مختلفة.");
     }
-};
-
-
-// Helper to transform snake_case from Supabase to camelCase for the app
-const fromSupabase = (data: any) => {
-    if (!data) return null;
-    if (Array.isArray(data)) {
-        return data.map(item => fromSupabase(item));
-    }
-    const transformed: {[key: string]: any} = {};
-    for (const key in data) {
-        const camelKey = key.replace(/_([a-z])/g, g => g[1].toUpperCase());
-        transformed[camelKey] = data[key];
-    }
-    return transformed;
-};
-
-// Helper to transform camelCase from the app to snake_case for Supabase
-const toSupabase = (data: any) => {
-    const transformed: {[key: string]: any} = {};
-    for (const key in data) {
-        if (key.includes('_')) {
-             transformed[key] = data[key];
-             continue;
-        }
-        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        transformed[snakeKey] = data[key];
-    }
-    return transformed;
 }
 
-// Helper to extract the storage path from a public URL
-const getPathFromUrl = (url: string): string | null => {
-    if (!url || !url.includes('/storage/v1/object/public/product_images')) {
-        return null;
+/**
+ * Saves a user-designed product to the database and storage.
+ * @param name The name of the new product.
+ * @param price The selling price.
+ * @param imageBlob The final design image as a Blob.
+ * @returns The newly created product.
+ */
+export async function savePublishedProduct(name: string, price: number, imageBlob: Blob): Promise<Product> {
+    if (!supabase) {
+        throw new Error("Supabase client is not initialized.");
     }
-    try {
-        const urlObject = new URL(url);
-        const parts = urlObject.pathname.split('/');
-        const bucketName = 'product_images';
-        const bucketIndex = parts.indexOf(bucketName);
-        if (bucketIndex === -1 || bucketIndex + 1 >= parts.length) {
-            console.warn(`Could not determine image path from URL: ${url}`);
-            return null;
-        }
-        return parts.slice(bucketIndex + 1).join('/');
-    } catch (error) {
-        console.error(`Invalid URL provided to getPathFromUrl: ${url}`, error);
-        return null;
+
+    // 1. Upload the final design image to Supabase Storage
+    const fileName = `designs/${Date.now()}.png`;
+    const { error: uploadError } = await supabase.storage
+        .from('product_images')
+        .upload(fileName, imageBlob, {
+            contentType: 'image/png',
+        });
+
+    if (uploadError) {
+        console.error('Error uploading design image:', uploadError);
+        throw new Error('فشل رفع صورة التصميم.');
     }
-};
+
+    const { data: { publicUrl } } = supabase.storage
+        .from('product_images')
+        .getPublicUrl(fileName);
+
+    if (!publicUrl) {
+        throw new Error('لم يتم العثور على رابط الصورة بعد الرفع.');
+    }
+
+    // 2. Insert the new product into the 'products' table
+    const productData = {
+        name,
+        price,
+        description: `تصميم فريد تم إنشاؤه بواسطة أحد مستخدمي المنصة.`,
+        image_url: publicUrl,
+        category: 'تصاميم المستخدمين', // Special category for user designs
+        stock: 999, // Assume high stock for on-demand products
+        rating: 5,
+        reviews: 0,
+    };
+
+    const { data, error: insertError } = await supabase
+        .from('products')
+        .insert(productData)
+        .select()
+        .single();
+    
+    if (insertError) {
+        console.error('Error saving published product:', insertError);
+        throw new Error('فشل حفظ المنتج الجديد في قاعدة البيانات.');
+    }
+    
+    // FIX: Map snake_case from db to camelCase for the app type
+    return { 
+        ...data, 
+        createdAt: data.created_at, 
+        imageUrl: data.image_url,
+        originalPrice: data.original_price,
+    } as Product;
+}
 
 
 const api = {
-  getProducts: async (): Promise<Product[]> => {
+  // Product Functions
+  async getProducts(): Promise<Product[]> {
+    if (!supabase) throw new Error("Supabase client not initialized.");
     const { data, error } = await supabase
       .from('products')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching products:', error.message || error);
-      return [];
+      console.error("Error fetching products:", error);
+      throw error;
     }
-    return fromSupabase(data) as Product[];
+    // FIX: Map snake_case from db to camelCase for the app type
+    return data.map(p => ({ ...p, createdAt: p.created_at, imageUrl: p.image_url, originalPrice: p.original_price })) as Product[];
   },
 
-  getProductById: async (id: number): Promise<Product | undefined> => {
+  async getProductById(id: number): Promise<Product | null> {
+    if (!supabase) throw new Error("Supabase client not initialized.");
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -179,229 +186,168 @@ const api = {
       .single();
       
     if (error) {
-      console.error(`Error fetching product ${id}:`, error.message || error);
-      return undefined;
+      console.error(`Error fetching product with id ${id}:`, error);
+      // 'PGRST116' is the code for "JSON object requested, but row not found"
+      if (error.code === 'PGRST116') return null;
+      throw error;
     }
-    return fromSupabase(data) as Product | undefined;
+    // FIX: Map snake_case from db to camelCase for the app type
+    return data ? { ...data, createdAt: data.created_at, imageUrl: data.image_url, originalPrice: data.original_price } as Product : null;
   },
-  
-  saveProduct: async (
+
+  async saveProduct(
     productData: Partial<Omit<Product, 'id' | 'createdAt'>>,
     imageFile: File | null,
     existingProduct: Product | null
-  ): Promise<Product> => {
-    let finalProductData = { ...productData };
-    let newImageUrl: string | null = null;
-    const oldImageUrl: string | null = existingProduct?.imageUrl || null;
+  ): Promise<Product> {
+    if (!supabase) throw new Error("Supabase client not initialized.");
+    let imageUrl = existingProduct?.imageUrl;
 
+    // 1. Handle image upload if a new file is provided
     if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `products/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('product_images')
-            .upload(fileName, imageFile);
-
+            .upload(filePath, imageFile);
+        
         if (uploadError) {
-            throw new Error(`فشل رفع الصورة: ${uploadError.message}`);
+            console.error('Error uploading image:', uploadError);
+            throw new Error('فشل رفع الصورة.');
         }
 
-        const { data: urlData } = supabase.storage
+        const { data: { publicUrl } } = supabase.storage
             .from('product_images')
-            .getPublicUrl(fileName);
+            .getPublicUrl(filePath);
         
-        newImageUrl = urlData.publicUrl;
-        finalProductData.imageUrl = newImageUrl;
-        // ** FIX: Always overwrite the images array when a new file is uploaded **
-        finalProductData.images = [newImageUrl];
-    }
+        imageUrl = publicUrl;
 
-    try {
-        let savedData;
-        if (existingProduct) {
-            const { data, error } = await supabase
-                .from('products')
-                .update(toSupabase(finalProductData))
-                .eq('id', existingProduct.id)
-                .select()
-                .single();
-            if (error) throw error;
-            savedData = data;
-        } else {
-            const { data, error } = await supabase
-                .from('products')
-                .insert(toSupabase(finalProductData))
-                .select()
-                .single();
-            if (error) throw error;
-            savedData = data;
-        }
-
-        if (imageFile && oldImageUrl && oldImageUrl !== newImageUrl) {
-            try {
-                const oldImagePath = getPathFromUrl(oldImageUrl);
-                if (oldImagePath) {
-                    await supabase.storage.from('product_images').remove([oldImagePath]);
-                }
-            } catch (deleteErr: any) {
-                console.warn(`تم حفظ المنتج، لكن فشل حذف الصورة القديمة: ${deleteErr.message}`);
+        // Optional: remove the old image if updating
+        if (existingProduct && existingProduct.imageUrl) {
+            const oldFileName = existingProduct.imageUrl.split('/').pop();
+            if (oldFileName) {
+                await supabase.storage.from('product_images').remove([`products/${oldFileName}`]);
             }
         }
-        
-        return fromSupabase(savedData) as Product;
-
-    } catch (dbError: any) {
-        if (newImageUrl) {
-            console.warn("فشل عملية قاعدة البيانات، سيتم محاولة حذف الصورة المرفوعة...");
-            const newImagePath = getPathFromUrl(newImageUrl);
-            if(newImagePath) {
-                await supabase.storage.from('product_images').remove([newImagePath]).catch(cleanupErr => console.error("فشل حذف الصورة بعد فشل العملية:", cleanupErr));
-            }
-        }
-        throw new Error(`فشل حفظ المنتج في قاعدة البيانات: ${dbError.message}`);
     }
-  },
-
-  // New function to publish a user-designed product
-  savePublishedProduct: async (
-    productData: Partial<Omit<Product, 'id' | 'createdAt'>>,
-    imageFile: File,
-  ): Promise<Product> => {
-    let newImageUrl: string | null = null;
     
-    // 1. Upload the composite image file
-    const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'png';
-    const fileName = `published/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-        .from('product_images')
-        .upload(fileName, imageFile);
-
-    if (uploadError) {
-        throw new Error(`فشل رفع صورة التصميم: ${uploadError.message}`);
+    if (!imageUrl && !existingProduct) {
+        throw new Error('صورة المنتج مطلوبة.');
     }
-
-    const { data: urlData } = supabase.storage
-        .from('product_images')
-        .getPublicUrl(fileName);
     
-    newImageUrl = urlData.publicUrl;
+    // FIX: Map camelCase from app to snake_case for Supabase
+    const { originalPrice, imageUrl: _imageUrl, ...restOfData } = productData;
     
-    // 2. Prepare product data for insertion
-    const finalProductData = {
-      ...productData,
-      imageUrl: newImageUrl,
-      images: [newImageUrl],
-      category: 'تصاميم المستخدمين', // Assign a specific category
-      stock: 999, // Assume print-on-demand
-      rating: 0,
-      reviews: 0,
+    const dataToUpsert: any = {
+        ...existingProduct,
+        ...restOfData,
+        image_url: imageUrl,
+        original_price: originalPrice,
     };
-
-    // 3. Insert the new product into the database
-    try {
-        const { data, error } = await supabase
-            .from('products')
-            .insert(toSupabase(finalProductData))
-            .select()
-            .single();
-        if (error) throw error;
-        
-        return fromSupabase(data) as Product;
-
-    } catch (dbError: any) {
-        // If DB operation fails, try to clean up the uploaded image
-        console.warn("فشل عملية قاعدة البيانات، سيتم محاولة حذف الصورة المرفوعة...");
-        const newImagePath = getPathFromUrl(newImageUrl);
-        if(newImagePath) {
-            await supabase.storage.from('product_images').remove([newImagePath]).catch(cleanupErr => console.error("فشل حذف الصورة بعد فشل العملية:", cleanupErr));
-        }
-        throw new Error(`فشل نشر المنتج في قاعدة البيانات: ${dbError.message}`);
-    }
-  },
-
-  deleteProduct: async (product: Product): Promise<void> => {
-    console.error(`Attempting to delete product ID: ${product.id}`);
-    const imagePath = getPathFromUrl(product.imageUrl);
-
-    // الخطوة 1: حذف المنتج من قاعدة البيانات أولاً. هذا هو الإجراء الأهم.
-    const { error: dbError } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', product.id);
-
-    if (dbError) {
-        // إذا فشل حذف قاعدة البيانات، نتوقف فوراً ونبلغ عن الخطأ.
-        console.error('DATABASE DELETE FAILED:', dbError);
-        throw new Error(`فشل حذف المنتج من قاعدة البيانات: ${dbError.message}`);
-    }
-
-    // الخطوة 2: إذا نجح حذف قاعدة البيانات، نحاول حذف الصورة من التخزين.
-    if (imagePath) {
-        const { error: storageError } = await supabase.storage
-            .from('product_images')
-            .remove([imagePath]);
-
-        if (storageError) {
-            // هذا ليس خطأً فادحاً للمستخدم، لأن المنتج تم حذفه بالفعل.
-            // نسجل تحذيراً للمطور لمراجعته لاحقاً.
-            console.warn(`تم حذف المنتج بنجاح، لكن فشل حذف الصورة (${imagePath}) من التخزين: ${storageError.message}`);
-        }
-    }
-  },
-  
-  getOrders: async (): Promise<Order[]> => {
+    delete dataToUpsert.createdAt; // Don't send this back
+    delete dataToUpsert.imageUrl; // remove camelCase version
+    
+    // 2. Upsert (update or insert) product data
     const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false });
+        .from('products')
+        .upsert(dataToUpsert)
+        .select()
+        .single();
+    
+    if (error) {
+        console.error('Error saving product:', error);
+        throw new Error('فشل حفظ بيانات المنتج.');
+    }
+    
+    // FIX: Map snake_case from db to camelCase for the app type
+    return { ...data, createdAt: data.created_at, originalPrice: data.original_price, imageUrl: data.image_url } as Product;
+  },
+
+  async deleteProduct(product: Product): Promise<void> {
+    if (!supabase) throw new Error("Supabase client not initialized.");
+    // 1. Delete the image from storage
+    if (product.imageUrl) {
+        const fileName = product.imageUrl.split('/').pop();
+        if (fileName) {
+            const { error: storageError } = await supabase.storage
+                .from('product_images')
+                .remove([`products/${fileName}`]);
+            if (storageError) {
+                // Log the error but proceed to delete the record, as it's more critical
+                console.error(`Could not delete image for product ${product.id}:`, storageError);
+            }
+        }
+    }
+
+    // 2. Delete the product record
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', product.id);
+    
+    if (error) {
+        console.error(`Error deleting product ${product.id}:`, error);
+        throw error;
+    }
+  },
+
+  // Order Functions
+  async getOrders(): Promise<Order[]> {
+    if (!supabase) throw new Error("Supabase client not initialized.");
+    const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
 
     if (error) {
-        console.error('Error fetching orders:', error.message || error);
-        return [];
+        console.error("Error fetching orders:", error);
+        throw error;
     }
-    
-    const transformedData = fromSupabase(data) as any[];
-    return transformedData.map(order => ({
-        ...order,
-        createdAt: new Date(order.createdAt),
-    })) as Order[];
+    // FIX: Map snake_case from db to camelCase and parse items
+    return data.map(o => ({ ...o, createdAt: o.created_at, customerName: o.customer_name, items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items })) as Order[];
+  },
+
+  async submitOrder(orderData: Omit<Order, 'id' | 'status' | 'createdAt'>): Promise<Order> {
+    if (!supabase) throw new Error("Supabase client not initialized.");
+    const dataToInsert = {
+        customer_name: orderData.customerName,
+        phone: orderData.phone,
+        address: orderData.address,
+        city: orderData.city,
+        items: JSON.stringify(orderData.items), // Supabase JSONB expects stringified JSON
+        total: orderData.total,
+        status: 'pending',
+    };
+
+    const { data, error } = await supabase
+        .from('orders')
+        .insert(dataToInsert)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Error submitting order:", error);
+        throw error;
+    }
+    return { ...data, createdAt: data.created_at, customerName: data.customer_name, items: JSON.parse(data.items) } as Order;
   },
   
-  updateOrderStatus: async (orderId: string, status: Order['status']): Promise<Order | undefined> => {
-     const { data, error } = await supabase
+  async updateOrderStatus(orderId: string, newStatus: Order['status']): Promise<Order | null> {
+    if (!supabase) throw new Error("Supabase client not initialized.");
+    const { data, error } = await supabase
         .from('orders')
-        .update({ status })
+        .update({ status: newStatus })
         .eq('id', orderId)
         .select()
         .single();
     
-     if (error) {
-        console.error(`Error updating order ${orderId}:`, error.message || error);
-        return undefined;
-     }
-
-     return fromSupabase(data) as Order | undefined;
-  },
-  
-  submitOrder: async (orderData: Omit<Order, 'id' | 'status' | 'createdAt'>): Promise<Order> => {
-    const orderToInsert = toSupabase({
-      ...orderData,
-      status: 'pending',
-    });
-    
-    const { data, error } = await supabase
-        .from('orders')
-        .insert(orderToInsert)
-        .select()
-        .single();
-
     if (error) {
-        console.error('Error submitting order:', error.message || error);
-        throw new Error('Could not submit order');
+        console.error("Error updating order status:", error);
+        return null;
     }
-
-    return fromSupabase(data) as Order;
+    return { ...data, createdAt: data.created_at, customerName: data.customer_name, items: JSON.parse(data.items) } as Order;
   },
 };
 

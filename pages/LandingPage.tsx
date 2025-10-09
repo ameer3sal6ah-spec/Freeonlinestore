@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -32,7 +34,8 @@ const LandingPage: React.FC = () => {
 
   const handleBuyNow = () => {
     if (product) {
-      addToCart(product);
+      // FIX: The addToCart function expects an object with a product property.
+      addToCart({ product });
       navigate('/checkout');
     }
   };

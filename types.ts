@@ -1,9 +1,4 @@
-
-export interface ProductColor {
-  name: string;
-  hex: string;
-  imageUrl: string;
-}
+// types.ts
 
 export interface Product {
   id: number;
@@ -12,41 +7,29 @@ export interface Product {
   originalPrice?: number | null;
   description: string;
   imageUrl: string;
-  images: string[];
+  images?: string[];
   stock: number;
   category: string;
   rating: number;
   reviews: number;
-  createdAt?: string;
-  brand?: string;
-  colors?: ProductColor[];
-  isPopular?: boolean;
+  createdAt: string;
 }
 
+/**
+ * Represents a customized T-shirt design.
+ * Instead of storing individual design elements, we store the final rendered image
+ * for a more accurate and robust representation in the cart and order.
+ */
 export interface Customization {
-    color: { name: string; hex: string };
-    size: string;
-    logoUrl: string | null;
-    basePrice: number;
-    tshirtImageUrl: string;
-    logoPosition?: { x: number; y: number; width: number };
-    text?: {
-      content: string;
-      color: string;
-      fontSize: number; // percentage of preview width
-      fontFamily: string;
-      x: number;
-      y: number;
-    };
+  finalDesignUrl: string; // The generated composite image of the final design on the t-shirt
+  colorName: string;      // e.g., 'أبيض', 'أسود', 'مخصص'
+  size: string;           // 'S', 'M', 'L', etc.
 }
+
 
 export interface CartItem {
-  cartItemId: string; // Unique ID for this specific item in the cart
-  product: Product | {
-      id: string;
-      name:string;
-      price: number;
-  };
+  cartItemId: string;
+  product: Product;
   quantity: number;
   customization?: Customization;
 }
@@ -60,5 +43,5 @@ export interface Order {
   items: CartItem[];
   total: number;
   status: 'pending' | 'shipped' | 'delivered' | 'cancelled';
-  createdAt: Date;
+  createdAt: string;
 }
