@@ -5,7 +5,7 @@ import { Product } from '../types';
 import ProductCard from '../components/ProductCard';
 import { SearchIcon } from '../components/icons/Icons';
 
-const DigitalProductsPage: React.FC = () => {
+const PublishedDesignsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -14,7 +14,9 @@ const DigitalProductsPage: React.FC = () => {
     const fetchProducts = async () => {
       setLoading(true);
       const allProducts = await api.getProducts();
-      setProducts(allProducts);
+      // Filter for user-published designs
+      const publishedDesigns = allProducts.filter(p => p.category === 'تصاميم المستخدمين');
+      setProducts(publishedDesigns);
       setLoading(false);
     };
     fetchProducts();
@@ -33,18 +35,21 @@ const DigitalProductsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-6 py-12">
-      <h1 className="text-3xl font-bold text-center mb-6">المنتجات الرقمية</h1>
+      <h1 className="text-3xl font-bold text-center mb-6">👕 تصاميم إبداعية من مجتمعنا</h1>
+      <p className="text-center text-gray-600 mb-10 max-w-2xl mx-auto">
+        هنا تجد تصاميم فريدة تم إنشاؤها ونشرها بواسطة مستخدمين آخرين. اختر ما يعجبك وأضفه إلى سلتك!
+      </p>
 
       {/* Search Bar */}
       <div className="mb-10 max-w-2xl mx-auto">
         <div className="relative">
             <input
                 type="text"
-                placeholder="ابحث عن منتج بالاسم أو الوصف..."
+                placeholder="ابحث في تصاميم المبدعين..."
                 className="w-full p-4 ps-12 text-lg border border-gray-300 rounded-full shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                aria-label="Search for products"
+                aria-label="Search for published designs"
             />
             <div className="absolute inset-y-0 start-0 flex items-center ps-4 pointer-events-none">
                 <SearchIcon className="w-6 h-6 text-gray-400" />
@@ -53,7 +58,7 @@ const DigitalProductsPage: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="text-center text-lg">جار تحميل المنتجات...</div>
+        <div className="text-center text-lg">جار تحميل الإبداعات...</div>
       ) : (
         <>
             {filteredProducts.length > 0 ? (
@@ -64,8 +69,12 @@ const DigitalProductsPage: React.FC = () => {
                 </div>
             ) : (
                 <div className="text-center py-16 bg-white rounded-lg shadow-md">
-                    <p className="text-xl text-gray-600 mb-4">لم يتم العثور على منتجات تطابق بحثك.</p>
-                    <p className="text-gray-500">حاول استخدام كلمات بحث مختلفة.</p>
+                    <p className="text-xl text-gray-600 mb-4">
+                        {searchQuery ? 'لم يتم العثور على تصاميم تطابق بحثك.' : 'لا توجد تصاميم منشورة بعد. كن أول من ينشر!'}
+                    </p>
+                    <p className="text-gray-500">
+                        {searchQuery ? 'حاول استخدام كلمات بحث مختلفة.' : 'اذهب إلى استوديو التصميم وشارك إبداعك.'}
+                    </p>
                 </div>
             )}
         </>
@@ -74,4 +83,4 @@ const DigitalProductsPage: React.FC = () => {
   );
 };
 
-export default DigitalProductsPage;
+export default PublishedDesignsPage;

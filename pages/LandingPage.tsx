@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -88,7 +89,7 @@ const LandingPage: React.FC = () => {
         
         {/* Footer */}
         <footer className="text-center text-gray-500 mt-12 border-t pt-4">
-            <p>&copy; {new Date().getFullYear()} متجري. جميع الحقوق محفوظة.</p>
+            <p>&copy; {new Date().getFullYear()} Profit store. جميع الحقوق محفوظة.</p>
         </footer>
       </div>
     </div>

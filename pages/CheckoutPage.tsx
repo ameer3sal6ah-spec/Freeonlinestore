@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
@@ -36,7 +37,7 @@ const CheckoutPage: React.FC = () => {
     try {
       const newOrder = await api.submitOrder(orderData);
       clearCart();
-      navigate('/confirmation', { state: { orderId: newOrder.id } });
+      navigate('/confirmation', { state: { order: newOrder } });
     } catch (error) {
       console.error("Failed to submit order:", error);
       // Show an error message to the user
@@ -93,16 +94,17 @@ const CheckoutPage: React.FC = () => {
         <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md h-fit">
           <h2 className="text-2xl font-semibold mb-6">ملخص الطلب</h2>
           <div className="space-y-4">
+            {/* FIX: Correctly access CartItem properties for product details */}
             {cartItems.map(item => (
-              <div key={item.id} className="flex justify-between items-center">
+              <div key={item.cartItemId} className="flex justify-between items-center">
                 <div className="flex items-center">
-                  <img src={item.imageUrl} alt={item.name} className="w-16 h-16 rounded-md me-4"/>
+                  <img src={item.customization ? item.customization.tshirtImageUrl : (item.product as any).imageUrl} alt={item.product.name} className="w-16 h-16 rounded-md me-4 object-cover"/>
                   <div>
-                    <p className="font-semibold">{item.name}</p>
+                    <p className="font-semibold">{item.product.name}</p>
                     <p className="text-sm text-gray-500">الكمية: {item.quantity}</p>
                   </div>
                 </div>
-                <p className="font-semibold">{(item.price * item.quantity).toFixed(2)} ج.م</p>
+                <p className="font-semibold">{(item.product.price * item.quantity).toFixed(2)} ج.م</p>
               </div>
             ))}
           </div>

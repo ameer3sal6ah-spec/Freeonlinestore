@@ -17,7 +17,7 @@ const Footer: React.FC = () => {
             <YouTubeIcon className="w-7 h-7" />
           </a>
         </div>
-        <p>&copy; {new Date().getFullYear()} متجري. جميع الحقوق محفوظة.</p>
+        <p>&copy; {new Date().getFullYear()} Profit store. جميع الحقوق محفوظة.</p>
         <p className="text-sm mt-2">تم إنشاء الموقع بواسطة Mohamed Abd Alall</p>
       </div>
     </footer>

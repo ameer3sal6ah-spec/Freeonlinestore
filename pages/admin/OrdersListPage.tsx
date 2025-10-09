@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import { Order } from '../../types';
+import { WhatsAppIcon } from '../../components/icons/Icons';
 
 const OrdersListPage: React.FC = () => {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -30,6 +32,41 @@ const OrdersListPage: React.FC = () => {
             setOrders(originalOrders);
             alert("فشل تحديث حالة الطلب");
         }
+    };
+
+    const formatPhoneNumber = (phone: string): string => {
+        let cleaned = phone.replace(/\D/g, ''); // إزالة كل ما ليس برقم
+        if (cleaned.startsWith('0')) {
+            cleaned = cleaned.substring(1); // إزالة الصفر في البداية
+        }
+        if (!cleaned.startsWith('20')) {
+            cleaned = '20' + cleaned; // إضافة كود الدولة لمصر
+        }
+        return cleaned;
+    };
+
+    const handleWhatsAppConfirm = (order: Order) => {
+        const customerPhone = formatPhoneNumber(order.phone);
+        // FIX: Access product name via item.product.name
+        const itemsSummary = order.items.map(item => `- ${item.product.name} (الكمية: ${item.quantity})`).join('\n');
+        
+        const message = `
+مرحباً ${order.customerName}،
+نحن نتصل بك من متجر "Profit store" لتأكيد طلبك رقم:
+*${order.id}*
+
+*تفاصيل الطلب:*
+${itemsSummary}
+
+*الإجمالي:* ${order.total.toFixed(2)} ج.م (الدفع عند الاستلام)
+
+يرجى الرد بـ "أؤكد" لمتابعة عملية الشحن.
+شكراً لثقتك بنا!
+        `.trim().replace(/\n\s*\n/g, '\n\n');
+
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/${customerPhone}?text=${encodedMessage}`;
+        window.open(whatsappUrl, '_blank');
     };
     
     const getStatusChip = (status: Order['status']) => {
@@ -69,7 +106,7 @@ const OrdersListPage: React.FC = () => {
                                         <td className="p-3">{order.customerName}</td>
                                         <td className="p-3">{order.phone}</td>
                                         <td className="p-3">{`${order.address}, ${order.city}`}</td>
-                                        <td className="p-3">{new Date(order.createdAt).toLocaleString('ar-SA')}</td>
+                                        <td className="p-3">{new Date(order.createdAt).toLocaleString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' })}</td>
                                         <td className="p-3">{order.total.toFixed(2)} ج.م</td>
                                         <td className="p-3">
                                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusChip(order.status)}`}>
@@ -77,16 +114,28 @@ const OrdersListPage: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="p-3">
-                                             <select 
-                                                value={order.status} 
-                                                onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
-                                                className="border-gray-300 rounded-md text-sm"
-                                            >
-                                                <option value="pending">قيد الانتظار</option>
-                                                <option value="shipped">تم الشحن</option>
-                                                <option value="delivered">تم التوصيل</option>
-                                                <option value="cancelled">ملغي</option>
-                                             </select>
+                                            <div className="flex items-center space-x-2 space-x-reverse">
+                                                <select 
+                                                    value={order.status} 
+                                                    onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
+                                                    className="border-gray-300 rounded-md text-sm"
+                                                >
+                                                    <option value="pending">قيد الانتظار</option>
+                                                    <option value="shipped">تم الشحن</option>
+                                                    <option value="delivered">تم التوصيل</option>
+                                                    <option value="cancelled">ملغي</option>
+                                                </select>
+                                                {order.status === 'pending' && (
+                                                    <button
+                                                        onClick={() => handleWhatsAppConfirm(order)}
+                                                        className="p-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+                                                        title="تأكيد الطلب عبر واتساب"
+                                                        aria-label="Confirm order via WhatsApp"
+                                                    >
+                                                        <WhatsAppIcon className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

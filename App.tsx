@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { HashRouter, Route, Routes, Outlet, Navigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
@@ -11,7 +12,7 @@ import ProtectedAdminLayout from './components/layout/ProtectedAdminLayout';
 // Pages
 import HomePage from './pages/HomePage';
 import DigitalProductsPage from './pages/ShopPage';
-import DesignStudioPage from './pages/DesignStudioPage';
+import DesignStudioPage from './pages/DesignStudioPage.tsx';
 import PublishedDesignsPage from './pages/PublishedDesignsPage'; // Import the new page
 import ProductPage from './pages/ProductPage';
 import CartPage from './pages/CartPage';

@@ -11,11 +11,13 @@ const Header: React.FC = () => {
     <header className="bg-white shadow-md sticky top-0 z-40">
       <div className="container mx-auto px-6 py-4 flex justify-between items-center">
         <Link to="/" className="text-2xl font-bold text-teal-600">
-          متجري
+          Profit store
         </Link>
-        <nav className="hidden md:flex items-center space-x-8 space-x-reverse">
+        <nav className="hidden md:flex items-center space-x-6 space-x-reverse">
           <Link to="/" className="text-gray-600 hover:text-teal-600 transition-colors">الرئيسية</Link>
-          <Link to="/shop" className="text-gray-600 hover:text-teal-600 transition-colors">المتجر</Link>
+          <Link to="/design-studio" className="text-gray-600 hover:text-teal-600 transition-colors font-semibold">🎨 صمم بنفسك</Link>
+          <Link to="/published-designs" className="text-gray-600 hover:text-teal-600 transition-colors">👕 تصاميم إبداعية</Link>
+          <Link to="/digital-products" className="text-gray-600 hover:text-teal-600 transition-colors">🎮 منتجات رقمية</Link>
         </nav>
         <div className="flex items-center">
           <Link to="/cart" className="relative text-gray-600 hover:text-teal-600 transition-colors">

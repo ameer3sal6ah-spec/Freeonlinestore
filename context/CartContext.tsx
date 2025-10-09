@@ -1,12 +1,12 @@
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { CartItem, Product } from '../types';
+import { CartItem, Product, Customization } from '../types';
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (product: Product) => void;
-  removeFromCart: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  addToCart: (item: Omit<CartItem, 'cartItemId' | 'quantity'>, quantity?: number) => void;
+  removeFromCart: (cartItemId: string) => void;
+  updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
   cartCount: number;
   cartTotal: number;
@@ -32,26 +32,37 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     localStorage.setItem('cartItems', JSON.stringify(cartItems));
   }, [cartItems]);
 
-  const addToCart = (product: Product) => {
+  const addToCart = (newItem: Omit<CartItem, 'cartItemId' | 'quantity'>, quantity: number = 1) => {
     setCartItems(prevItems => {
-      const existingItem = prevItems.find(item => item.id === product.id);
-      if (existingItem) {
-        return prevItems.map(item =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
+      // For standard products, check if it already exists
+      if (!newItem.customization) {
+          const existingItem = prevItems.find(item => !item.customization && item.product.id === newItem.product.id);
+          if (existingItem) {
+              return prevItems.map(item =>
+                  item.cartItemId === existingItem.cartItemId ? { ...item, quantity: item.quantity + quantity } : item
+              );
+          }
       }
-      return [...prevItems, { ...product, quantity: 1 }];
+      
+      // For new items (custom or standard), add them with a unique ID
+      const itemToAdd: CartItem = {
+          ...newItem,
+          quantity,
+          cartItemId: `${newItem.product.id}-${Date.now()}` // Generate a unique ID
+      };
+      
+      return [...prevItems, itemToAdd];
     });
   };
 
-  const removeFromCart = (productId: number) => {
-    setCartItems(prevItems => prevItems.filter(item => item.id !== productId));
+  const removeFromCart = (cartItemId: string) => {
+    setCartItems(prevItems => prevItems.filter(item => item.cartItemId !== cartItemId));
   };
 
-  const updateQuantity = (productId: number, quantity: number) => {
+  const updateQuantity = (cartItemId: string, quantity: number) => {
     setCartItems(prevItems =>
       prevItems.map(item =>
-        item.id === productId ? { ...item, quantity: Math.max(0, quantity) } : item
+        item.cartItemId === cartItemId ? { ...item, quantity: Math.max(0, quantity) } : item
       ).filter(item => item.quantity > 0)
     );
   };
@@ -61,7 +72,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   };
 
   const cartCount = cartItems.reduce((count, item) => count + item.quantity, 0);
-  const cartTotal = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
+  const cartTotal = cartItems.reduce((total, item) => total + item.product.price * item.quantity, 0);
 
   return (
     <CartContext.Provider

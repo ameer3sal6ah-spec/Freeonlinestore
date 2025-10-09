@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
@@ -37,7 +38,7 @@ const ProductPage: React.FC = () => {
 
   const handleAddToCart = () => {
     if (product) {
-      addToCart(product);
+      addToCart({ product });
       setAddedToCart(true);
       setTimeout(() => setAddedToCart(false), 2500);
     }
@@ -51,17 +52,19 @@ const ProductPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow-md overflow-hidden mb-4">
             <img src={selectedImage} alt={product.name} className="w-full h-96 object-cover" />
           </div>
-          <div className="flex space-x-2 space-x-reverse">
-            {product.images.map((img, index) => (
-              <img
-                key={index}
-                src={img}
-                alt={`${product.name} thumbnail ${index + 1}`}
-                className={`w-20 h-20 object-cover rounded-md cursor-pointer border-2 ${selectedImage === img ? 'border-teal-500' : 'border-transparent'}`}
-                onClick={() => setSelectedImage(img)}
-              />
-            ))}
-          </div>
+          {product.images && product.images.length > 1 && (
+            <div className="flex space-x-2 space-x-reverse">
+              {product.images.map((img, index) => (
+                <img
+                  key={index}
+                  src={img}
+                  alt={`${product.name} thumbnail ${index + 1}`}
+                  className={`w-20 h-20 object-cover rounded-md cursor-pointer border-2 ${selectedImage === img ? 'border-teal-500' : 'border-transparent'}`}
+                  onClick={() => setSelectedImage(img)}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Product Details */}

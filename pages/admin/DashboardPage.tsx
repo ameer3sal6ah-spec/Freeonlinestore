@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Order } from '../../types';
 import api from '../../services/api';
@@ -68,7 +69,7 @@ const DashboardPage: React.FC = () => {
                                     <tr key={order.id} className="border-b">
                                         <td className="p-3">{order.id}</td>
                                         <td className="p-3">{order.customerName}</td>
-                                        <td className="p-3">{new Date(order.createdAt).toLocaleDateString('ar-SA')}</td>
+                                        <td className="p-3">{new Date(order.createdAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Cairo' })}</td>
                                         <td className="p-3">{order.total.toFixed(2)} ج.م</td>
                                         <td className="p-3">
                                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusChip(order.status)}`}>

@@ -1,8 +1,9 @@
+
 import { supabase } from './supabaseClient';
 import { Product, Order } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 
-// Gemini AI Integration for product descriptions
+// Gemini AI Integration for product descriptions and image generation
 let genAI: GoogleGenAI | null = null;
 let genAIError: string | null = null;
 
@@ -38,6 +39,70 @@ export const generateProductDescription = async (productName: string, category: 
     } catch (error: any) {
         console.error("Error generating description with Gemini:", error);
         throw new Error(`فشل إنشاء الوصف: ${error.message}`);
+    }
+};
+
+export const generateImageFromText = async (prompt: string): Promise<string> => {
+    if (genAIError || !genAI) {
+        throw new Error(genAIError || "خدمة الذكاء الاصطناعي غير متاحة.");
+    }
+    try {
+        const response = await genAI.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: prompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/png', // Use PNG for potential transparency
+            },
+        });
+        return response.generatedImages[0].image.imageBytes; // Returns base64 string
+    } catch (error: any) {
+        console.error("Error generating image with Imagen:", error);
+        throw new Error(`فشل إنشاء الصورة من النص: ${error.message}`);
+    }
+};
+
+export const generateImageFromImageAndText = async (base64Data: string, mimeType: string, prompt: string): Promise<string> => {
+    if (genAIError || !genAI) {
+        throw new Error(genAIError || "خدمة الذكاء الاصطناعي غير متاحة.");
+    }
+    try {
+        const response = await genAI.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [
+                    { inlineData: { data: base64Data, mimeType: mimeType } },
+                    { text: prompt },
+                ],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE, Modality.TEXT],
+            },
+        });
+        
+        // Improved error handling
+        const candidate = response.candidates?.[0];
+        if (!candidate || (candidate.finishReason && candidate.finishReason !== 'STOP')) {
+             const reason = candidate?.finishReason || 'غير معروف';
+             const reasonText = reason === 'SAFETY' ? 'لأسباب تتعلق بالسلامة' : `بسبب (${reason})`;
+             throw new Error(`تم حظر إنشاء الصورة ${reasonText}. حاول تغيير الوصف أو الصورة.`);
+        }
+        
+        const imagePart = candidate.content?.parts?.find(part => part.inlineData);
+
+        if (imagePart?.inlineData?.data) {
+            return imagePart.inlineData.data;
+        }
+        
+        throw new Error("لم يتم العثور على صورة في استجابة الذكاء الاصطناعي.");
+
+    } catch (error: any) {
+        console.error("Error editing image with Gemini:", error);
+        // Avoid nesting "فشل تعديل الصورة"
+        if (error.message.startsWith("تم حظر إنشاء الصورة")) {
+            throw error;
+        }
+        throw new Error(`فشل تعديل الصورة: ${error.message}`);
     }
 };
 
@@ -147,9 +212,8 @@ const api = {
         
         newImageUrl = urlData.publicUrl;
         finalProductData.imageUrl = newImageUrl;
-        if (!finalProductData.images || finalProductData.images.length === 0) {
-            finalProductData.images = [newImageUrl];
-        }
+        // ** FIX: Always overwrite the images array when a new file is uploaded **
+        finalProductData.images = [newImageUrl];
     }
 
     try {
@@ -195,6 +259,64 @@ const api = {
             }
         }
         throw new Error(`فشل حفظ المنتج في قاعدة البيانات: ${dbError.message}`);
+    }
+  },
+
+  // New function to publish a user-designed product
+  savePublishedProduct: async (
+    productData: Partial<Omit<Product, 'id' | 'createdAt'>>,
+    imageFile: File,
+  ): Promise<Product> => {
+    let newImageUrl: string | null = null;
+    
+    // 1. Upload the composite image file
+    const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'png';
+    const fileName = `published/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('product_images')
+        .upload(fileName, imageFile);
+
+    if (uploadError) {
+        throw new Error(`فشل رفع صورة التصميم: ${uploadError.message}`);
+    }
+
+    const { data: urlData } = supabase.storage
+        .from('product_images')
+        .getPublicUrl(fileName);
+    
+    newImageUrl = urlData.publicUrl;
+    
+    // 2. Prepare product data for insertion
+    const finalProductData = {
+      ...productData,
+      imageUrl: newImageUrl,
+      images: [newImageUrl],
+      category: 'تصاميم المستخدمين', // Assign a specific category
+      stock: 999, // Assume print-on-demand
+      rating: 0,
+      reviews: 0,
+    };
+
+    // 3. Insert the new product into the database
+    try {
+        const { data, error } = await supabase
+            .from('products')
+            .insert(toSupabase(finalProductData))
+            .select()
+            .single();
+        if (error) throw error;
+        
+        return fromSupabase(data) as Product;
+
+    } catch (dbError: any) {
+        // If DB operation fails, try to clean up the uploaded image
+        console.warn("فشل عملية قاعدة البيانات، سيتم محاولة حذف الصورة المرفوعة...");
+        const newImagePath = getPathFromUrl(newImageUrl);
+        if(newImagePath) {
+            await supabase.storage.from('product_images').remove([newImagePath]).catch(cleanupErr => console.error("فشل حذف الصورة بعد فشل العملية:", cleanupErr));
+        }
+        throw new Error(`فشل نشر المنتج في قاعدة البيانات: ${dbError.message}`);
     }
   },
 
