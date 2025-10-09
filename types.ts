@@ -1,3 +1,8 @@
+export interface ProductColor {
+  name: string;
+  hex: string;
+  imageUrl: string;
+}
 
 export interface Product {
   id: number;
@@ -12,10 +17,37 @@ export interface Product {
   rating: number;
   reviews: number;
   createdAt?: string;
+  brand?: string;
+  colors?: ProductColor[];
+  isPopular?: boolean;
 }
 
-export interface CartItem extends Product {
+export interface Customization {
+    color: { name: string; hex: string };
+    size: string;
+    logoUrl: string | null;
+    basePrice: number;
+    tshirtImageUrl: string;
+    logoPosition?: { x: number; y: number; width: number };
+    text?: {
+      content: string;
+      color: string;
+      fontSize: number; // percentage of preview width
+      fontFamily: string;
+      x: number;
+      y: number;
+    };
+}
+
+export interface CartItem {
+  cartItemId: string; // Unique ID for this specific item in the cart
+  product: Product | {
+      id: string;
+      name:string;
+      price: number;
+  };
   quantity: number;
+  customization?: Customization;
 }
 
 export interface Order {

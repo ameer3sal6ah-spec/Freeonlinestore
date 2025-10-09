@@ -1,25 +1,3 @@
-# متجر إلكتروني احترافي مع React و Supabase
-
-هذا المشروع هو تطبيق متجر إلكتروني متكامل مبني باستخدام React، و Tailwind CSS، و Supabase كقاعدة بيانات.
-
-## كيفية تشغيل المشروع
-
-### الخطوة 1: إعداد الاتصال
-
-1.  **إنشاء مشروع Supabase:**
-    *   اذهب إلى [supabase.com](https://supabase.com) وأنشئ مشروعاً جديداً.
-2.  **الحصول على مفاتيح API:**
-    *   من لوحة تحكم مشروعك، اذهب إلى `Settings` (الإعدادات) > `API`.
-    *   انسخ قيم `Project URL` و `anon` `public` key.
-3.  **تحديث ملف `supabaseClient.ts`:**
-    *   افتح ملف `services/supabaseClient.ts` في المشروع.
-    *   استبدل القيم المؤقتة بالقيم التي نسختها.
-
-### الخطوة 2: إعداد قاعدة البيانات والتخزين (الكود الشامل)
-
-اذهب إلى `SQL Editor` في لوحة تحكم Supabase وقم بتنفيذ الكود التالي بالكامل. هذا الكود آمن لإعادة التنفيذ وسيضمن أن كل شيء مُعد بشكل صحيح.
-
-```sql
 -- =================================================================
 -- SQL الكامل لإعداد قاعدة بيانات متجر Supabase
 -- آمن لإعادة التنفيذ: لن يسبب أخطاء إذا كانت الإعدادات موجودة بالفعل
@@ -40,7 +18,10 @@ CREATE TABLE IF NOT EXISTS public.products (
   stock INT DEFAULT 0,
   category TEXT,
   rating NUMERIC,
-  reviews INT
+  reviews INT,
+  brand TEXT,
+  colors JSONB,
+  is_popular BOOLEAN DEFAULT false
 );
 
 -- تفعيل الأمان (RLS)
@@ -110,24 +91,18 @@ CREATE POLICY "Allow anon insert access to product images" ON storage.objects FO
 CREATE POLICY "Allow anon update access to product images" ON storage.objects FOR UPDATE USING ( bucket_id = 'product_images' );
 CREATE POLICY "Allow anon delete access to product images" ON storage.objects FOR DELETE USING ( bucket_id = 'product_images' );
 
-```
+-- =================================================================
+-- بيانات تجريبية (اختياري)
+-- =================================================================
 
-### الخطوة 3: إضافة بيانات منتجات أولية (اختياري)
-
-لإضافة بعض المنتجات للمتجر، يمكنك تنفيذ الكود التالي في `SQL Editor`.
-
-```sql
 -- حذف المنتجات الحالية لمنع التكرار عند إعادة التنفيذ
--- TRUNCATE TABLE public.products RESTART IDENTITY;
+TRUNCATE TABLE public.products RESTART IDENTITY;
 
 -- إضافة منتجات جديدة
-INSERT INTO products (name, price, original_price, description, image_url, images, stock, category, rating, reviews) VALUES
-('ساعة ذكية فاخرة', 350, 500, 'ساعة ذكية أنيقة مع شاشة AMOLED وتتبع للياقة البدنية ومقاومة للماء. تصميم عصري يناسب جميع المناسبات.', 'https://picsum.photos/seed/watch/600/600', ARRAY['https://picsum.photos/seed/watch/600/600', 'https://picsum.photos/seed/watch2/600/600'], 25, 'إلكترونيات', 4.8, 120),
-('سماعات بلوتوث لاسلكية', 199, 250, 'استمتع بصوت نقي وعزل للضوضاء مع هذه السماعات اللاسلكية. عمر بطارية طويل وصوت عالي الجودة.', 'https://picsum.photos/seed/headphones/600/600', ARRAY['https://picsum.photos/seed/headphones/600/600', 'https://picsum.photos/seed/headphones2/600/600'], 50, 'إلكترونيات', 4.6, 250),
-('حقيبة ظهر عصرية', 120, NULL, 'حقيبة ظهر بتصميم حديث، مثالية للعمل أو الدراسة. مساحة تخزين واسعة ومقاومة للماء.', 'https://picsum.photos/seed/backpack/600/600', ARRAY['https://picsum.photos/seed/backpack/600/600'], 100, 'أزياء', 4.9, 88),
-('ماكينة قهوة احترافية', 850, 1100, 'اصنع قهوتك المفضلة في المنزل بكل سهولة. تصميم أنيق وأداء قوي للحصول على أفضل كوب قهوة.', 'https://picsum.photos/seed/coffee/600/600', ARRAY['https://picsum.photos/seed/coffee/600/600'], 15, 'أجهزة منزلية', 4.7, 95);
-```
-
-### الخطوة 4: تشغيل التطبيق
-
-بعد إتمام الخطوات السابقة، افتح التطبيق في المتصفح. يجب أن تعمل جميع الميزات الآن بشكل صحيح.
+INSERT INTO products (name, price, original_price, description, image_url, images, stock, category, rating, reviews, brand, colors, is_popular) VALUES
+('هودي أسود برسوم', 199, 275, 'هودي مريح وعصري مصنوع من القطن الناعم، مثالي للإطلالات اليومية.', 'https://i.imgur.com/8E3O340.png', ARRAY['https://i.imgur.com/8E3O340.png', 'https://i.imgur.com/p77bA4N.png'], 30, 'ملابس جاهزة', 4.8, 150, 'MENESI''s - Apparels', '[{"name": "Black", "hex": "#2d3436", "imageUrl": "https://i.imgur.com/8E3O340.png"}, {"name": "White", "hex": "#ffffff", "imageUrl": "https://i.imgur.com/G5g2rG6.png"}]', true),
+('تيشيرت وقت القهوة', 169, 219, 'تيشيرت قطني بتصميم فريد لمحبي القهوة، يجمع بين الأناقة والراحة.', 'https://i.imgur.com/JPl5C3P.png', ARRAY['https://i.imgur.com/JPl5C3P.png'], 50, 'ملابس جاهزة', 4.7, 95, 'Magical Booth', '[{"name": "Gray", "hex": "#95a5a6", "imageUrl": "https://i.imgur.com/JPl5C3P.png"}, {"name": "Black", "hex": "#2d3436", "imageUrl": "https://i.imgur.com/8QW2m3w.png"}]', true),
+('هودي Cat make me happy', 199, 274, 'هودي لطيف ومبهج، الخيار الأمثل لمحبي القطط لإضافة لمسة من المرح لملابسهم.', 'https://i.imgur.com/eun36hG.png', ARRAY['https://i.imgur.com/eun36hG.png'], 25, 'ملابس جاهزة', 4.9, 210, 'Miss Ginger', '[{"name": "Yellow", "hex": "#f1c40f", "imageUrl": "https://i.imgur.com/eun36hG.png"}, {"name": "Black", "hex": "#2d3436", "imageUrl": "https://i.imgur.com/K3Z4A2I.png"}]', true),
+('هودي Do what you love', 200, 275, 'هودي أبيض يحمل رسالة إيجابية، مصنوع من مواد عالية الجودة لضمان راحتك طوال اليوم.', 'https://i.imgur.com/G5g2rG6.png', ARRAY['https://i.imgur.com/G5g2rG6.png', 'https://i.imgur.com/8E3O340.png'], 40, 'ملابس جاهزة', 4.8, 180, 'M-E', '[{"name": "White", "hex": "#ffffff", "imageUrl": "https://i.imgur.com/G5g2rG6.png"}, {"name": "Black", "hex": "#2d3436", "imageUrl": "https://i.imgur.com/8E3O340.png"}]', true),
+('سماعات بلوتوث لاسلكية', 199, 250, 'استمتع بصوت نقي وعزل للضوضاء مع هذه السماعات اللاسلكية.', 'https://picsum.photos/seed/headphones/600/600', ARRAY['https://picsum.photos/seed/headphones/600/600'], 50, 'إلكترونيات', 4.6, 250, 'Tech Savvy', '[]', false),
+('حقيبة ظهر عصرية', 120, NULL, 'حقيبة ظهر بتصميم حديث، مثالية للعمل أو الدراسة.', 'https://picsum.photos/seed/backpack/600/600', ARRAY['https://picsum.photos/seed/backpack/600/600'], 100, 'أزياء', 4.9, 88, 'Urban Gear', '[]', false);

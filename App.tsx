@@ -10,7 +10,9 @@ import ProtectedAdminLayout from './components/layout/ProtectedAdminLayout';
 
 // Pages
 import HomePage from './pages/HomePage';
-import ShopPage from './pages/ShopPage';
+import DigitalProductsPage from './pages/ShopPage';
+import DesignStudioPage from './pages/DesignStudioPage';
+import PublishedDesignsPage from './pages/PublishedDesignsPage'; // Import the new page
 import ProductPage from './pages/ProductPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
@@ -57,7 +59,9 @@ const App: React.FC = () => {
           {/* Public Store Routes */}
           <Route element={<StoreLayout />}>
             <Route path="/" element={<HomePage />} />
-            <Route path="/shop" element={<ShopPage />} />
+            <Route path="/digital-products" element={<DigitalProductsPage />} />
+            <Route path="/design-studio" element={<DesignStudioPage />} />
+            <Route path="/published-designs" element={<PublishedDesignsPage />} /> {/* Add new route */}
             <Route path="/product/:id" element={<ProductPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
